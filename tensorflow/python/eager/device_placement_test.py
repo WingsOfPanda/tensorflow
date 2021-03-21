@@ -20,6 +20,7 @@ from __future__ import print_function
 
 from absl.testing import parameterized
 
+from tensorflow.python.eager import backprop
 from tensorflow.python.eager import context
 from tensorflow.python.eager import def_function
 from tensorflow.python.eager import remote
@@ -30,6 +31,7 @@ from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import errors
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import test_util
+from tensorflow.python.ops import variables
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import random_ops
@@ -102,6 +104,23 @@ class SoftDevicePlacementTest(test.TestCase, parameterized.TestCase):
         c = a + b
     # We don't support nested device placement right now.
     self.assertIn('GPU:0', c.device)
+
+  @test_util.run_gpu_only
+  def testGradientPlacement(self):
+    with ops.device('GPU:0'):
+      x = variables.Variable(1.0)
+    with ops.device('CPU:0'):
+      y = variables.Variable(1.0)
+
+    with backprop.GradientTape() as tape:
+      with ops.device('GPU:0'):
+        x1 = constant_op.constant(2.0) * x
+      with ops.device('CPU:0'):
+        y1 = constant_op.constant(2.0) * y
+      z = x1 + y1
+    grads = tape.gradient(z, [x, y])
+    self.assertIn('GPU:0', grads[0].device)
+    self.assertIn('CPU:0', grads[1].device)
 
   @parameterized.named_parameters(('float', 1.0, None),
                                   ('int32', [1], dtypes.int32),
