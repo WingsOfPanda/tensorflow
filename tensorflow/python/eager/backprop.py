@@ -126,13 +126,14 @@ class _MockOp(object):
     )
 
 
-def _gradient_function(op_name, attr_tuple, num_inputs, inputs, outputs,
+def _gradient_function(op_name, attr_tuple, device, num_inputs, inputs, outputs,
                        out_grads, skip_input_indices, forward_pass_name_scope):
   """Calls the gradient function of the op.
 
   Args:
     op_name: the name of the op to be differentiated.
     attr_tuple: the attrs, as a tuple.
+    device: the device of the op.
     num_inputs: the number of inputs to the op.
     inputs: inputs to the original operation.
     outputs: outputs to the original operation.
@@ -147,7 +148,9 @@ def _gradient_function(op_name, attr_tuple, num_inputs, inputs, outputs,
   mock_op = _MockOp(attr_tuple, inputs, outputs, op_name, skip_input_indices)
   grad_fn = ops._gradient_registry.lookup(op_name)  # pylint: disable=protected-access
   if grad_fn is None:
-    return [None] * num_inputs
+    # return [None] * num_inputs
+    with ops.device(device):
+      return grad_fn(mock_op, *out_grads)
 
   # This does not work with v1 TensorArrays.
   if ops.executing_eagerly_outside_functions(
